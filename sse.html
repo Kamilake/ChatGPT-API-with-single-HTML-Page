@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+  <body>
+    <h1>OpenAI API Demo</h1>
+    <div id="chat-output"></div>
+    <script type="text/javascript">
+      const chatOutputDiv = document.getElementById("chat-output");
+      const body = JSON.stringify({
+        model: "gpt-3.5-turbo",
+        messages: [
+          {
+            role: "system",
+            content: "You are a helpful assistant.",
+          },
+          {
+            role: "user",
+            content: "Hello, how are you?",
+          },
+        ],
+        stream: true,
+      });
+      create_chat_completion(body);
+
+      function create_chat_completion(body) {
+        const OPENAI_API_KEY =
+          "sk-000000000000000000000000000000000000000000000000";
+        const headers = {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+        };
+        fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers,
+          body,
+        })
+          .then((response) => {
+            const reader = response.body.getReader();
+            const stream = new ReadableStream({
+              start(controller) {
+                console.log("[SSE] SSE stream started.");
+                function push() {
+                  console.log("[SSE] New SSE stream arrived.");
+                  reader.read().then(({ done, value }) => {
+                    if (done) {
+                      console.log("[SSE] SSE stream ended.");
+                      return;
+                    }
+                    let strings = new TextDecoder("utf-8")
+                      .decode(value)
+                      .replace(/(\r?\ndata:\s{)|(^data:\s{)/g, "{")
+                      .split("\n")
+                      .filter(Boolean);
+                    console.log(strings);
+                    strings.forEach((string) => {
+                      if (string === "data: [DONE]") return;
+                      let result = JSON.parse(string);
+                      if (result.choices && result.choices[0].delta.content)
+                        chatOutputDiv.innerHTML +=
+                          result.choices[0].delta.content;
+                      push();
+                    });
+                  });
+                }
+                push();
+              },
+            });
+          })
+          .catch((error) => console.error(error));
+      }
+    </script>
+  </body>
+</html>
